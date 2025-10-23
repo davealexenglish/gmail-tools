@@ -1,0 +1,10 @@
+credentials.json
+token.json
+*.pyc
+__pycache__/
+*.eml
+*.html
+venv/
+.env
+downloads/
+.idea/
