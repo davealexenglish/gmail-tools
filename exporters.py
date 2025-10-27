@@ -53,7 +53,8 @@ class EmailExporter:
     def export_to_html(
         messages: List[Dict],
         output_file: str = 'emails.html',
-        sort_chronological: bool = True
+        sort_chronological: bool = True,
+        reverse: bool = False
     ) -> str:
         """
         Export messages to a single HTML file.
@@ -62,12 +63,13 @@ class EmailExporter:
             messages: List of message dictionaries
             output_file: Output HTML file path
             sort_chronological: Sort emails chronologically
+            reverse: Sort in reverse order (newest first)
 
         Returns:
             Path to saved HTML file
         """
         if sort_chronological:
-            messages = sorted(messages, key=lambda m: m.get('date', ''))
+            messages = sorted(messages, key=lambda m: m.get('date', ''), reverse=reverse)
 
         html_content = EmailExporter._generate_html(messages)
 

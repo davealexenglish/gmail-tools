@@ -58,8 +58,9 @@ def list_emails(max_results, query):
 @click.option('--html', '-h', default='', help='Export to HTML file')
 @click.option('--eml', is_flag=True, help='Export to EML files')
 @click.option('--query', '-q', default='', help='Gmail search query (pre-filter)')
+@click.option('--reverse', '-r', is_flag=True, help='Sort in reverse chronological order (newest first)')
 def filter_emails(max_results, keywords, subject_only, body_only,
-                 case_sensitive, output_dir, html, eml, query):
+                 case_sensitive, output_dir, html, eml, query, reverse):
     """Filter emails by keywords and export them."""
     try:
         service = get_gmail_service()
@@ -109,7 +110,7 @@ def filter_emails(max_results, keywords, subject_only, body_only,
 
         if html:
             click.echo(f"\nExporting to HTML file '{html}'...")
-            EmailExporter.export_to_html(filtered, html, sort_chronological=True)
+            EmailExporter.export_to_html(filtered, html, sort_chronological=True, reverse=reverse)
             click.echo("HTML export complete.")
 
     except FileNotFoundError as e:
@@ -151,7 +152,8 @@ def export_eml(max_results, output_dir, query):
 @click.option('--max-results', '-n', default=50, help='Number of emails to fetch')
 @click.option('--output', '-o', default='emails.html', help='Output HTML file')
 @click.option('--query', '-q', default='', help='Gmail search query')
-def export_html(max_results, output, query):
+@click.option('--reverse', '-r', is_flag=True, help='Sort in reverse chronological order (newest first)')
+def export_html(max_results, output, query, reverse):
     """Export emails to HTML file."""
     try:
         service = get_gmail_service()
@@ -165,7 +167,7 @@ def export_html(max_results, output, query):
             return
 
         click.echo(f"Exporting {len(messages)} emails to '{output}'...")
-        EmailExporter.export_to_html(messages, output, sort_chronological=True)
+        EmailExporter.export_to_html(messages, output, sort_chronological=True, reverse=reverse)
         click.echo("Export complete.")
 
     except FileNotFoundError as e:
