@@ -4,6 +4,7 @@ Email export utilities for EML and HTML formats.
 import os
 from typing import List, Dict
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 import html
 
 
@@ -69,7 +70,16 @@ class EmailExporter:
             Path to saved HTML file
         """
         if sort_chronological:
-            messages = sorted(messages, key=lambda m: m.get('date', ''), reverse=reverse)
+            def parse_date(msg):
+                try:
+                    date_str = msg.get('date', '')
+                    if date_str:
+                        return parsedate_to_datetime(date_str)
+                    return datetime.min
+                except Exception:
+                    return datetime.min
+
+            messages = sorted(messages, key=parse_date, reverse=reverse)
 
         html_content = EmailExporter._generate_html(messages)
 
