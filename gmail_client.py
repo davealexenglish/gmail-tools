@@ -98,6 +98,17 @@ class GmailClient:
         body_html = self._get_body(message['payload'], 'text/html')
         body_text = self._get_body(message['payload'], 'text/plain')
 
+        # Extract inline images
+        inline_images = self._get_inline_images(message['payload'])
+
+        # Fetch attachment data for inline images
+        msg_id = message['id']
+        for cid, img_info in inline_images.items():
+            if img_info.get('attachment_id') and not img_info.get('data'):
+                attachment_data = self.get_attachment(msg_id, img_info['attachment_id'])
+                if attachment_data:
+                    img_info['data'] = attachment_data
+
         return {
             'id': message['id'],
             'threadId': message['threadId'],
@@ -109,6 +120,7 @@ class GmailClient:
             'snippet': message.get('snippet', ''),
             'body_html': body_html,
             'body_text': body_text,
+            'inline_images': inline_images,
             'raw': message
         }
 
@@ -161,6 +173,84 @@ class GmailClient:
                     ).decode('utf-8', errors='ignore')
 
         return ''
+
+    def _get_inline_images(self, payload: Dict) -> Dict[str, Dict]:
+        """
+        Extract inline images (attachments with Content-ID).
+
+        Args:
+            payload: Message payload
+
+        Returns:
+            Dictionary mapping Content-ID to image data and MIME type
+        """
+        inline_images = {}
+
+        def extract_images(part):
+            """Recursively extract images from parts."""
+            # Check if this part has a Content-ID header (inline image)
+            headers = part.get('headers', [])
+            content_id = None
+            for header in headers:
+                if header['name'].lower() == 'content-id':
+                    # Content-ID is usually in format <id>, strip the brackets
+                    content_id = header['value'].strip('<>')
+                    break
+
+            # If this is an inline image, extract it
+            if content_id and part.get('mimeType', '').startswith('image/'):
+                body = part.get('body', {})
+                if 'attachmentId' in body:
+                    # Image data needs to be fetched separately
+                    inline_images[content_id] = {
+                        'attachment_id': body['attachmentId'],
+                        'mime_type': part['mimeType'],
+                        'data': None  # Will be fetched on demand
+                    }
+                elif 'data' in body:
+                    # Image data is directly available
+                    inline_images[content_id] = {
+                        'data': body['data'],  # Already base64 encoded
+                        'mime_type': part['mimeType']
+                    }
+
+            # Recursively check nested parts
+            if 'parts' in part:
+                for nested_part in part['parts']:
+                    extract_images(nested_part)
+
+        # Start extraction from payload
+        if 'parts' in payload:
+            for part in payload['parts']:
+                extract_images(part)
+        else:
+            extract_images(payload)
+
+        return inline_images
+
+    def get_attachment(self, msg_id: str, attachment_id: str) -> Optional[str]:
+        """
+        Get attachment data by ID.
+
+        Args:
+            msg_id: Message ID
+            attachment_id: Attachment ID
+
+        Returns:
+            Base64-encoded attachment data
+        """
+        try:
+            attachment = self.service.users().messages().attachments().get(
+                userId='me',
+                messageId=msg_id,
+                id=attachment_id
+            ).execute()
+
+            return attachment['data']
+
+        except Exception as e:
+            print(f"Error getting attachment {attachment_id}: {e}")
+            return None
 
     def get_raw_message(self, msg_id: str) -> Optional[bytes]:
         """

@@ -2,6 +2,7 @@
 Email export utilities for EML and HTML formats.
 """
 import os
+import re
 from typing import List, Dict
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -183,6 +184,9 @@ class EmailExporter:
             if not body:
                 body_text = msg.get('body_text', msg.get('snippet', ''))
                 body = '<pre>' + html.escape(body_text) + '</pre>'
+            else:
+                # Replace cid: references with data URIs
+                body = EmailExporter._replace_cid_with_data_uri(body, msg.get('inline_images', {}))
 
             email_html = f"""
     <div class="email-container" id="email-{idx}">
@@ -205,6 +209,41 @@ class EmailExporter:
 """)
 
         return ''.join(html_parts)
+
+    @staticmethod
+    def _replace_cid_with_data_uri(html_body: str, inline_images: Dict[str, Dict]) -> str:
+        """
+        Replace cid: references in HTML with data URIs.
+
+        Args:
+            html_body: HTML content with cid: references
+            inline_images: Dictionary of inline images from message
+
+        Returns:
+            HTML with cid: references replaced by data URIs
+        """
+        # Find all cid: references in the HTML
+        # Pattern matches src="cid:..." and src='cid:...'
+        def replace_cid(match):
+            cid = match.group(1)
+
+            # Look up the image data
+            if cid in inline_images:
+                img_info = inline_images[cid]
+                mime_type = img_info.get('mime_type', 'image/png')
+                data = img_info.get('data')
+
+                if data:
+                    # Data is already base64 encoded from Gmail API
+                    return f'src="data:{mime_type};base64,{data}"'
+
+            # If image not found, keep the original cid reference
+            return match.group(0)
+
+        # Replace all cid: references
+        html_body = re.sub(r'src=["\']cid:([^"\']+)["\']', replace_cid, html_body, flags=re.IGNORECASE)
+
+        return html_body
 
     @staticmethod
     def _sanitize_filename(filename: str, max_length: int = 50) -> str:
